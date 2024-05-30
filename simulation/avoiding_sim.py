@@ -8,7 +8,7 @@ import numpy as np
 import torch
 import wandb
 
-from simulation.base_sim import BaseSim
+from base_sim import BaseSim
 
 log = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ class Avoiding_Sim(BaseSim):
                 obs = np.concatenate((pred_action[:2], obs))
 
                 pred_action = agent.predict(obs)
-                pred_action = pred_action[0] + obs[:2]
+                pred_action = pred_action[0] + obs[:2]  # why not prediction += obs[:2], but only using [0]???
 
                 pred_action = np.concatenate((pred_action, fixed_z, [0, 1, 0, 0]), axis=0)
 

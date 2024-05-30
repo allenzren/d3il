@@ -5,7 +5,7 @@ This project contains the D3IL simulation environments code.
 
 ```
 SimulationFramework
-└── environments.d3il.d3il_sim # basic simulation code, including robots, robot controller, camera, etc.
+└── d3il_sim # basic simulation code, including robots, robot controller, camera, etc.
     └── controllers
     └── core
     └── gyms

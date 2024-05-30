@@ -4,8 +4,8 @@ import gym
 from gym.utils import seeding
 import numpy as np
 
-from environments.d3il.d3il_sim.controllers.Controller import ControllerBase
-from environments.d3il.d3il_sim.core import Scene
+from d3il_sim.controllers.Controller import ControllerBase
+from d3il_sim.core import Scene
 
 
 class GymEnvWrapper(gym.Env, ABC):
@@ -60,16 +60,33 @@ class GymEnvWrapper(gym.Env, ABC):
         """
         if gripper_width is not None:
             self.robot.set_gripper_width = gripper_width
+        self.robot.open_fingers()
 
         # self.controller.set_action(action)
         # self.controller.execute_action(n_time_steps=self.n_substeps)
 
-        self.robot.open_fingers()
+        # from avoiding_dataset.py
+        # robot_des_pos = env_state['robot']['des_c_pos'][:, :2]
+        # robot_c_pos = env_state['robot']['c_pos'][:, :2]
+        # input_state = np.concatenate((robot_des_pos, robot_c_pos), axis=-1)
+        # vel_state = robot_des_pos[1:] - robot_des_pos[:-1]
 
         # self.robot.cartesianPosQuatTrackingController.setSetPoint(action)
         # self.robot.cartesianPosQuatTrackingController.executeControllerTimeSteps(
         #     self.robot, self.n_substeps, block=False
         # )
+
+        # # from eval_agent for avoiding_sim
+        # pred_action = env.robot_state()
+        # fixed_z = pred_action[2:]
+        # done = False
+        # c_pos = [env.robot.current_c_pos]
+        # while not done:
+        #     obs = np.concatenate((pred_action[:2], obs))  # last commanded? action
+        #     pred_action = agent.predict(obs)
+        #     pred_action = pred_action[0] + obs[:2]
+        #     pred_action = np.concatenate((pred_action, fixed_z, [0, 1, 0, 0]), axis=0)
+        #     obs, reward, done, info = env.step(pred_action)
 
         # if self.env_step_counter == 0:
         #     action = self.robot.current_c_pos[:2] + action
@@ -79,12 +96,13 @@ class GymEnvWrapper(gym.Env, ABC):
         # action[0] = np.clip(action[0], 0.3, 0.8)
         # action[1] = np.clip(action[1], -0.45, 0.45)
         # action = np.concatenate((action, [0.12, 0, 1, 0, 0]))
+        # action = np.concatenate((action, [0.12,]))  # add z height
 
-        self.controller.setSetPoint(action)
+        desired_pos = np.concatenate((action + self.obs[:2], [0.12, 0, 1, 0, 0]))   # 0.12 for fixed height, [0,1,0,0] for quat
+        self.controller.setSetPoint(desired_pos)
         self.controller.executeControllerTimeSteps(
             self.robot, self.n_substeps, block=False
         )
-
         observation = self.get_observation()
         reward = self.get_reward()
         done = self.is_finished()
@@ -97,7 +115,7 @@ class GymEnvWrapper(gym.Env, ABC):
             debug_info = self.debug_msg()
 
         self.env_step_counter += 1
-        return observation, reward, done, debug_info
+        return observation, reward, done, desired_pos, debug_info
 
     @abstractmethod
     def get_observation(self) -> np.ndarray:
@@ -170,11 +188,13 @@ class GymEnvWrapper(gym.Env, ABC):
         gripper_width = [self.robot.gripper_width]
 
         # end effector state
-        tcp_pos = self.robot.current_c_pos
+        tcp_pos = self.robot.current_c_pos  # x,y,z
+        tcp_pos_desired = self.robot.des_c_pos  # x, y, z
+        # print('quat:', self.robot.current_c_quat)
         tcp_vel = self.robot.current_c_vel
         tcp_quad = self.robot.current_c_quat
 
-        return tcp_pos
+        return tcp_pos_desired, tcp_pos
 
         # return np.concatenate(
         #     [

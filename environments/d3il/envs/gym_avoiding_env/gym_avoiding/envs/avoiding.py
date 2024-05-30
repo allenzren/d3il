@@ -1,14 +1,16 @@
 import numpy as np
 import copy
-from environments.d3il.d3il_sim.sims.mj_beta.mj_utils.mj_helper import has_collision
-from environments.d3il.d3il_sim.utils.sim_path import d3il_path
+from d3il_sim.sims.mj_beta.mj_utils.mj_helper import has_collision
+from d3il_sim.utils.sim_path import d3il_path
 
-from environments.d3il.d3il_sim.core import Scene
-from environments.d3il.d3il_sim.gyms.gym_env_wrapper import GymEnvWrapper
-from environments.d3il.d3il_sim.core.logger import ObjectLogger, CamLogger
-from environments.d3il.d3il_sim.sims.mj_beta.MjRobot import MjRobot
-from environments.d3il.d3il_sim.sims.mj_beta.MjFactory import MjFactory
-from environments.d3il.d3il_sim.sims import MjCamera
+from gym.spaces import Box
+
+from d3il_sim.core import Scene
+from d3il_sim.gyms.gym_env_wrapper import GymEnvWrapper
+from d3il_sim.core.logger import ObjectLogger, CamLogger
+from d3il_sim.sims.mj_beta.MjRobot import MjRobot
+from d3il_sim.sims.mj_beta.MjFactory import MjFactory
+from d3il_sim.sims import MjCamera
 
 from .objects.avoiding_objects import get_obj_list, \
     init_end_eff_pos, \
@@ -57,7 +59,6 @@ class ObstacleAvoidanceEnv(GymEnvWrapper):
             debug: bool = False,
             render: bool = False
     ):
-
         sim_factory = MjFactory()
         render_mode = Scene.RenderMode.HUMAN if render else Scene.RenderMode.BLIND
         scene = sim_factory.create_scene(
@@ -76,23 +77,23 @@ class ObstacleAvoidanceEnv(GymEnvWrapper):
             n_substeps=n_substeps,
             debug=debug,
         )
+        self.action_space = Box(
+            low=np.array([-0.01, -0.01]), high=np.array([0.01, 0.01])
+        )
+        self.observation_space = Box(
+            low=-np.inf, high=np.inf, shape=(4, )
+        )
 
         self.manager = ObstacleAvoidanceManager()
-
         self.bp_cam = BPCageCam()
-
         self.scene.add_object(self.bp_cam)
-
         self.log_dict = {}
         self.cam_dict = {"bp-cam": CamLogger(scene, self.bp_cam)}
-
         for _, v in self.cam_dict.items():
             scene.add_logger(v)
 
         self.obj_xy_list = get_obj_xy_list()
-
         self.target_min_dist = 0.06
-
         level_distance = 0.18
         obstacle_offset = 0.075
         self.l1_ypos = -0.1
@@ -105,18 +106,20 @@ class ObstacleAvoidanceEnv(GymEnvWrapper):
         self.l3_top_xpos = 0.5 - 2 * obstacle_offset
         self.l3_mid_xpos = 0.5
         self.l3_bottom_xpos = 0.5 + 2 * obstacle_offset
-
         self.l1_passed = False
         self.l2_passed = False
         self.l3_passed = False
-
         self.mode_encoding = np.zeros(2 + 3 + 4)
 
         self.success = False
+        self.start()
 
     def get_observation(self) -> np.ndarray:
-        robot_c_pos = self.robot_state()[:2]
-        return robot_c_pos.astype(np.float32)
+        _, robot_c_pos = self.robot_state()
+        # if any(np.isnan(robot_des_c_pos)):
+        #     robot_des_c_pos = robot_c_pos
+        return np.hstack((self.prev_action, 
+                          robot_c_pos[:2].astype(np.float32)))
 
     def start(self):
         self.scene.start()
@@ -166,9 +169,11 @@ class ObstacleAvoidanceEnv(GymEnvWrapper):
         )
 
     def step(self, action, gripper_width=None):
-        observation, reward, done, _ = super().step(action, gripper_width)
+        self.obs = self.get_observation() 
+        observation, reward, done, desired_pos, _ = super().step(action, gripper_width)
         self.check_mode()
-        return observation, reward, done, (self.mode_encoding, self.success)
+        self.prev_action = desired_pos[:2]   # update
+        return observation, reward, done, {'mode_encoding': self.mode_encoding, 'success': self.success}
 
     def check_mode(self):
         r_x_pos = self.robot.current_c_pos[0]
@@ -231,21 +236,17 @@ class ObstacleAvoidanceEnv(GymEnvWrapper):
         self.mode_encoding = np.zeros(2 + 3 + 4)
 
     def get_reward(self):
-        ...
+        return self.reward(self.robot.current_c_pos[:2])
 
     def _check_early_termination(self) -> bool:
-
-        # print(self.check_failure())
-
-        if self.check_success() or self.check_failure():
-            if self.check_success():
-                self.success = True
-            self.terminated = True
-            return True
-
+        # if self.check_success() or self.check_failure():
+        #     if self.check_success():
+        #         self.success = True
+        #     self.terminated = True
+        #     return True
         return False
 
-    def reset(self, random=True, context=None):
+    def reset(self, random=True, context=None, **kwargs):
         self.terminated = False
         self.env_step_counter = 0
         self.episode += 1
@@ -258,19 +259,23 @@ class ObstacleAvoidanceEnv(GymEnvWrapper):
         self.scene.reset()
         self.robot.beam_to_joint_pos(self.robot.init_qpos)
         self.scene.next_step()
+        self.prev_action = self.robot.current_c_pos[:2].astype(np.float32)
         observation = self.get_observation()
         return observation
 
     def reward(self, x):
         def squared_exp_kernel(x, mean, scale, bandwidth):
-            return scale * np.exp(np.square(np.linalg.norm(x - mean, axis=1)) / bandwidth)
+            return scale * np.exp(np.square(np.linalg.norm(x - mean)) / bandwidth)
+        reward = 0
+        # for obs in self.obj_xy_list:    # obstacles
+        #     reward -= squared_exp_kernel(x, np.array(obs), 1, 1)
 
-        rewards = np.zeros(x.shape[0])
-        for obs in self.obj_xy_list:
-            rewards -= squared_exp_kernel(x, np.array(obs), 1, 1)
-        # rewards += np.abs(x[:, 1]- 0.4)
-        rewards -= np.abs(x[:, 0] - 0.4)
-        return rewards
+        # need reward engineering...
+        if x[1] > 0.4:
+            reward = 1
+        # reward += np.abs(x[1] - 0.4)    # finish line?
+        # rewards -= np.abs(x[:, 0] - 0.4)
+        return reward
 
     def mode_decoding(self, data):
         data_decimal = data.dot(1 << np.arange(data.shape[-1]))
@@ -278,7 +283,3 @@ class ObstacleAvoidanceEnv(GymEnvWrapper):
         mode_dist = counts / np.sum(counts)
         entropy = - np.sum(mode_dist * (np.log(mode_dist) / np.log(24)))
         return counts, entropy
-
-
-    def action_space(self):
-        ...

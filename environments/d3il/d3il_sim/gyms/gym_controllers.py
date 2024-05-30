@@ -3,9 +3,9 @@ import abc
 import gym
 import numpy as np
 
-import environments.d3il.d3il_sim.controllers.Controller as ctrl
-from environments.d3il.d3il_sim.controllers import CartPosQuatImpedenceController
-from environments.d3il.d3il_sim.controllers.TrajectoryTracking import (
+import d3il_sim.controllers.Controller as ctrl
+from d3il_sim.controllers import CartPosQuatImpedenceController
+from d3il_sim.controllers.TrajectoryTracking import (
     CartPosQuatTrajectoryTracker,
     GotoCartPosQuatImpedanceController,
     GotoTrajectoryLinear,

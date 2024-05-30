@@ -6,8 +6,8 @@ import logging
 import numpy as np
 from scipy.interpolate import make_interp_spline
 
-import environments.d3il.d3il_sim.utils as utils
-from environments.d3il.d3il_sim.controllers import ControllerBase
+import d3il_sim.utils as utils
+from d3il_sim.controllers import ControllerBase
 
 
 class TrajectoryGenerator:
@@ -436,11 +436,10 @@ class OfflineIKTrajectoryGenerator(TrajectoryGenerator):
 
             i += 1
 
-        print("Final IK error (%d iterations):  %s" % (i, errNorm))
-
-        logging.getLogger(__name__).debug(
-            "Final IK error (%d iterations):  %s" % (i, errNorm)
-        )
+        # print("Final IK error (%d iterations):  %s" % (i, errNorm))
+        # logging.getLogger(__name__).debug(
+        #     "Final IK error (%d iterations):  %s" % (i, errNorm)
+        # )
         self.interpolation_trajectory.setDesiredPos(q)
         return self.interpolation_trajectory.generate_trajectory(
             trackingController, robot, duration
