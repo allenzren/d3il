@@ -283,3 +283,21 @@ class ObstacleAvoidanceEnv(GymEnvWrapper):
         mode_dist = counts / np.sum(counts)
         entropy = - np.sum(mode_dist * (np.log(mode_dist) / np.log(24)))
         return counts, entropy
+
+class ObstacleAvoidanceTopEnv(ObstacleAvoidanceEnv):
+    """Reward for going through the top hole"""
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        
+    # def reset(self, **kwargs):
+    #     obs = super().reset(**kwargs)
+    #     self.flag_pass_hole = False
+    #     return obs
+
+    def reward(self, x):
+        reward = 0
+        if self.mode_encoding[6]:
+            reward += 1
+        if x[1] > 0.4:
+            reward += 1
+        return reward
