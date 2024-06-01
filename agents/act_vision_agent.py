@@ -16,12 +16,17 @@ import wandb
 
 from agents.base_agent import BaseAgent
 
-# A logger for this file
 log = logging.getLogger(__name__)
 
 
 class ActPolicy(nn.Module):
-    def __init__(self, model: DictConfig, obs_encoder: DictConfig, visual_input: bool = False, device: str = "cpu"):
+    def __init__(
+        self,
+        model: DictConfig,
+        obs_encoder: DictConfig,
+        visual_input: bool = False,
+        device: str = "cpu",
+    ):
         super(ActPolicy, self).__init__()
 
         self.visual_input = visual_input
@@ -46,9 +51,11 @@ class ActPolicy(nn.Module):
             # bp_imgs = einops.rearrange(bp_imgs, "B T C H W -> (B T) C H W")
             # inhand_imgs = einops.rearrange(inhand_imgs, "B T C H W -> (B T) C H W")
 
-            obs_dict = {"agentview_image": agentview_image,
-                        "in_hand_image": in_hand_image,
-                        "robot_ee_pos": state}
+            obs_dict = {
+                "agentview_image": agentview_image,
+                "in_hand_image": in_hand_image,
+                "robot_ee_pos": state,
+            }
 
             obs = self.obs_encoder(obs_dict)
             obs = obs.view(B, T, -1)
@@ -76,9 +83,11 @@ class ActPolicy(nn.Module):
             # bp_imgs = einops.rearrange(bp_imgs, "B T C H W -> (B T) C H W")
             # inhand_imgs = einops.rearrange(inhand_imgs, "B T C H W -> (B T) C H W")
 
-            obs_dict = {"agentview_image": agentview_image,
-                        "in_hand_image": in_hand_image,
-                        "robot_ee_pos": state}
+            obs_dict = {
+                "agentview_image": agentview_image,
+                "in_hand_image": in_hand_image,
+                "robot_ee_pos": state,
+            }
 
             obs = self.obs_encoder(obs_dict)
             obs = obs.view(B, T, -1)
@@ -95,32 +104,41 @@ class ActPolicy(nn.Module):
 class ActAgent(BaseAgent):
 
     def __init__(
-            self,
-            model: DictConfig,
-            optimization: DictConfig,
-            trainset: DictConfig,
-            valset: DictConfig,
-            train_batch_size,
-            val_batch_size,
-            num_workers,
-            device: str,
-            epoch: int,
-            scale_data,
-            eval_every_n_epochs: int,
-            goal_conditioned: bool,
-            lr_scheduler: DictConfig,
-            decay: float,
-            # update_ema_every_n_steps: int,
-            window_size: int,
-            obs_size: int,
-            action_seq_size: int,
-            goal_window_size: int,
-            que_actions: bool = False,
-            patience: int = 10,
+        self,
+        model: DictConfig,
+        optimization: DictConfig,
+        trainset: DictConfig,
+        valset: DictConfig,
+        train_batch_size,
+        val_batch_size,
+        num_workers,
+        device: str,
+        epoch: int,
+        scale_data,
+        eval_every_n_epochs: int,
+        goal_conditioned: bool,
+        lr_scheduler: DictConfig,
+        decay: float,
+        # update_ema_every_n_steps: int,
+        window_size: int,
+        obs_size: int,
+        action_seq_size: int,
+        goal_window_size: int,
+        que_actions: bool = False,
+        patience: int = 10,
     ):
-        super().__init__(model=model, trainset=trainset, valset=valset, train_batch_size=train_batch_size,
-                         val_batch_size=val_batch_size, num_workers=num_workers, device=device,
-                         epoch=epoch, scale_data=scale_data, eval_every_n_epochs=eval_every_n_epochs)
+        super().__init__(
+            model=model,
+            trainset=trainset,
+            valset=valset,
+            train_batch_size=train_batch_size,
+            val_batch_size=val_batch_size,
+            num_workers=num_workers,
+            device=device,
+            epoch=epoch,
+            scale_data=scale_data,
+            eval_every_n_epochs=eval_every_n_epochs,
+        )
 
         self.min_action = torch.from_numpy(self.scaler.y_bounds[0, :]).to(self.device)
         self.max_action = torch.from_numpy(self.scaler.y_bounds[1, :]).to(self.device)
@@ -137,8 +155,7 @@ class ActAgent(BaseAgent):
         )
 
         self.lr_scheduler = hydra.utils.instantiate(
-            lr_scheduler,
-            optimizer=self.optimizer
+            lr_scheduler, optimizer=self.optimizer
         )
         # define the usage of exponential moving average
         self.decay = decay
@@ -158,7 +175,9 @@ class ActAgent(BaseAgent):
         self.que_actions = que_actions
         self.pred_counter = 0
         self.action_counter = self.action_seq_size
-        assert self.window_size == self.action_seq_size + self.obs_size - 1, "window_size does not match the expected value"
+        assert (
+            self.window_size == self.action_seq_size + self.obs_size - 1
+        ), "window_size does not match the expected value"
 
         self.act_buffer = torch.zeros(())
 
@@ -185,19 +204,19 @@ class ActAgent(BaseAgent):
 
                 avrg_test_mse = sum(test_mse) / len(test_mse)
 
-                log.info("Epoch {}: Mean test mse is {}".format(num_epoch, avrg_test_mse))
+                log.info(
+                    "Epoch {}: Mean test mse is {}".format(num_epoch, avrg_test_mse)
+                )
 
                 if avrg_test_mse < best_test_mse:
                     best_test_mse = avrg_test_mse
-                    self.store_model_weights(self.working_dir, sv_name=self.eval_model_name)
-
-                    wandb.log(
-                        {
-                            "best_model_epochs": num_epoch
-                        }
+                    self.store_model_weights(
+                        self.working_dir, sv_name=self.eval_model_name
                     )
 
-                    log.info('New best test loss. Stored weights have been updated!')
+                    wandb.log({"best_model_epochs": num_epoch})
+
+                    log.info("New best test loss. Stored weights have been updated!")
 
                 wandb.log(
                     {
@@ -220,7 +239,9 @@ class ActAgent(BaseAgent):
 
             avrg_train_loss = sum(batch_losses) / len(batch_losses)
 
-            log.info("Epoch {}: Average train loss is {}".format(num_epoch, avrg_train_loss))
+            log.info(
+                "Epoch {}: Average train loss is {}".format(num_epoch, avrg_train_loss)
+            )
 
         self.store_model_weights(self.working_dir, sv_name=self.last_model_name)
         log.info("Training done!")
@@ -251,7 +272,9 @@ class ActAgent(BaseAgent):
                 }
             )
 
-    def train_step(self, state, actions: torch.Tensor, goal: Optional[torch.Tensor] = None):
+    def train_step(
+        self, state, actions: torch.Tensor, goal: Optional[torch.Tensor] = None
+    ):
         """
         Executes a single training step on a mini-batch of data
         """
@@ -279,7 +302,9 @@ class ActAgent(BaseAgent):
         return total_loss.item()
 
     @torch.no_grad()
-    def evaluate(self, state, actions: torch.Tensor, goal: Optional[torch.Tensor] = None) -> float:
+    def evaluate(
+        self, state, actions: torch.Tensor, goal: Optional[torch.Tensor] = None
+    ) -> float:
         """
         Method for evaluating the model on one epoch of data
         """
@@ -301,15 +326,31 @@ class ActAgent(BaseAgent):
         return total_loss.item()
 
     @torch.no_grad()
-    def predict(self, state, goal: Optional[torch.Tensor] = None, if_vision=False) -> torch.Tensor:
+    def predict(
+        self, state, goal: Optional[torch.Tensor] = None, if_vision=False
+    ) -> torch.Tensor:
         """
         Method for predicting one step with input data
         """
         bp_image, inhand_image, des_robot_pos = state
 
-        bp_image = torch.from_numpy(bp_image).to(self.device).float().unsqueeze(0).unsqueeze(0)
-        inhand_image = torch.from_numpy(inhand_image).to(self.device).float().unsqueeze(0).unsqueeze(0)
-        des_robot_pos = torch.from_numpy(des_robot_pos).to(self.device).float().unsqueeze(0).unsqueeze(0)
+        bp_image = (
+            torch.from_numpy(bp_image).to(self.device).float().unsqueeze(0).unsqueeze(0)
+        )
+        inhand_image = (
+            torch.from_numpy(inhand_image)
+            .to(self.device)
+            .float()
+            .unsqueeze(0)
+            .unsqueeze(0)
+        )
+        des_robot_pos = (
+            torch.from_numpy(des_robot_pos)
+            .to(self.device)
+            .float()
+            .unsqueeze(0)
+            .unsqueeze(0)
+        )
 
         des_robot_pos = self.scaler.scale_input(des_robot_pos)
 
@@ -324,11 +365,13 @@ class ActAgent(BaseAgent):
 
             self.model.eval()
             if len(state.shape) == 2:
-                state = einops.rearrange(state, 'b d -> 1 b d')
+                state = einops.rearrange(state, "b d -> 1 b d")
             # if len(goal.shape) == 2:
             #     goal = einops.rearrange(goal, 'b d -> 1 b d')
 
-            a_hat, (_, _) = self.model.model(state, goal)  # no action, sample from prior
+            a_hat, (_, _) = self.model.model(
+                state, goal
+            )  # no action, sample from prior
 
             a_hat = a_hat.clamp_(self.min_action, self.max_action)
 
@@ -353,7 +396,7 @@ class ActAgent(BaseAgent):
         mean_kld = klds.mean(1).mean(0, True)
 
         return total_kld, dimension_wise_kld, mean_kld
-    
+
     def reset(self):
-        """ Resets the context of the model."""
+        """Resets the context of the model."""
         self.action_counter = self.action_seq_size

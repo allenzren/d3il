@@ -8,7 +8,6 @@ import hydra
 
 from beso.networks.scaler.scaler_class import Scaler
 
-# A logger for this file
 log = logging.getLogger(__name__)
 
 
@@ -16,16 +15,16 @@ class BaseAgent(abc.ABC):
 
     def __init__(
         self,
-            model: DictConfig,
-            input_encoder: DictConfig,
-            optimization: DictConfig,
-            obs_modalities: list,
-            goal_modalities: list,
-            target_modality: str,
-            device: str,
-            max_train_steps: int,
-            eval_every_n_steps: int,
-            max_epochs: int,
+        model: DictConfig,
+        input_encoder: DictConfig,
+        optimization: DictConfig,
+        obs_modalities: list,
+        goal_modalities: list,
+        target_modality: str,
+        device: str,
+        max_train_steps: int,
+        eval_every_n_steps: int,
+        max_epochs: int,
     ):
         self.scaler = None
         self.model = hydra.utils.instantiate(model).to(device)
@@ -46,21 +45,35 @@ class BaseAgent(abc.ABC):
         log.info("The model has a total amount of {} parameters".format(total_params))
 
     @abc.abstractmethod
-    def train_agent(self, train_loader: torch.utils.data.DataLoader, test_loader: torch.utils.data.DataLoader):
+    def train_agent(
+        self,
+        train_loader: torch.utils.data.DataLoader,
+        test_loader: torch.utils.data.DataLoader,
+    ):
         """
         Main method to train the agent on the given train and test data
         """
         pass
 
     @abc.abstractmethod
-    def train_agent_on_epochs(self, train_loader: torch.utils.data.DataLoader, test_loader: torch.utils.data.DataLoader, epochs: int):
+    def train_agent_on_epochs(
+        self,
+        train_loader: torch.utils.data.DataLoader,
+        test_loader: torch.utils.data.DataLoader,
+        epochs: int,
+    ):
         """
         Main method to train the agent on the given train and test data
         """
         pass
 
     @abc.abstractmethod
-    def train_agent_on_steps(self, train_loader: torch.utils.data.DataLoader, test_loader: torch.utils.data.DataLoader, max_train_steps: int):
+    def train_agent_on_steps(
+        self,
+        train_loader: torch.utils.data.DataLoader,
+        test_loader: torch.utils.data.DataLoader,
+        max_train_steps: int,
+    ):
         """
         Main method to train the agent on the given train and test data
         """
@@ -102,11 +115,13 @@ class BaseAgent(abc.ABC):
         Method to load a pretrained model weights inside self.model
         """
         if sv_name is None:
-            self.model.load_state_dict(torch.load(os.path.join(weights_path, "model_state_dict.pth")))
+            self.model.load_state_dict(
+                torch.load(os.path.join(weights_path, "model_state_dict.pth"))
+            )
         else:
             self.model.load_state_dict(torch.load(os.path.join(weights_path, sv_name)))
-        log.info('Loaded pre-trained model parameters')
-    
+        log.info("Loaded pre-trained model parameters")
+
     @torch.no_grad()
     def process_batch(self, batch: dict, predict: bool = True):
         """
@@ -120,27 +135,27 @@ class BaseAgent(abc.ABC):
                 goal[..., [2, 5, 6, 7, 8, 9]] = 0
             if self.target_modality in batch:
                 action = batch[self.target_modality]
-                action = self.scaler.scale_output(action)                
+                action = self.scaler.scale_output(action)
                 return state, action, goal
-            elif 'goal_task_name' in batch:
-                goal_task_name = batch['goal_task_name']
+            elif "goal_task_name" in batch:
+                goal_task_name = batch["goal_task_name"]
                 return state, goal, goal_task_name
             else:
                 return state, goal, None
-                
+
         else:
-            state, goal = self.input_encoder(batch)  
+            state, goal = self.input_encoder(batch)
             state = self.scaler.scale_input(state)
             goal = self.scaler.scale_input(goal)
             if goal.shape[-1] == 10:
-                    goal[..., [2, 5, 6, 7, 8, 9]] = 0
+                goal[..., [2, 5, 6, 7, 8, 9]] = 0
             if self.target_modality in batch:
                 action = batch[self.target_modality]
                 action = self.scaler.scale_output(action)
                 return state, action, goal
             else:
                 return state, goal
-    
+
     def early_stopping(self, best_test_mse, mean_mse, patience, epochs):
         """
         Early stopping method
@@ -155,12 +170,15 @@ class BaseAgent(abc.ABC):
             return True, best_test_mse
         else:
             return False, best_test_mse
-        
+
     def store_model_weights(self, store_path: str, sv_name=None) -> None:
         """
         Store the model weights inside the store path as model_weights.pth
         """
         if sv_name is None:
-            torch.save(self.model.state_dict(), os.path.join(store_path, "model_state_dict.pth"))
+            torch.save(
+                self.model.state_dict(),
+                os.path.join(store_path, "model_state_dict.pth"),
+            )
         else:
             torch.save(self.model.state_dict(), os.path.join(store_path, sv_name))

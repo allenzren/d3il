@@ -14,41 +14,48 @@ from agents.base_agent import BaseAgent
 from agents.models.ibc.samplers.langevin_mcmc import LangevinMCMCSampler
 from agents.models.ibc.samplers.noise_sampler import NoiseSampler
 
-# A logger for this file
 log = logging.getLogger(__name__)
 
 
 class IBCAgent(BaseAgent):
 
     def __init__(
-            self,
-            model: DictConfig,
-            optimization: DictConfig,
-            trainset: DictConfig,
-            valset: DictConfig,
-            train_batch_size,
-            val_batch_size,
-            num_workers,
-            device: str,
-            epoch: int,
-            scale_data,
-            eval_every_n_epochs,
-
-            lr_scheduler: DictConfig,
-            sampler: DictConfig,
-            loss_type: str = "info_nce",
-            avrg_e_regularization: float = 0,
-            kl_loss_factor: float = 0,
-            grad_norm_factor: float = 1,
-            use_ema: bool = False,
-            decay: float = 0.999,
-            update_ema_every_n_steps: int = 1,
-            goal_conditioning: bool = True,
-            stop_value: int = 1,
+        self,
+        model: DictConfig,
+        optimization: DictConfig,
+        trainset: DictConfig,
+        valset: DictConfig,
+        train_batch_size,
+        val_batch_size,
+        num_workers,
+        device: str,
+        epoch: int,
+        scale_data,
+        eval_every_n_epochs,
+        lr_scheduler: DictConfig,
+        sampler: DictConfig,
+        loss_type: str = "info_nce",
+        avrg_e_regularization: float = 0,
+        kl_loss_factor: float = 0,
+        grad_norm_factor: float = 1,
+        use_ema: bool = False,
+        decay: float = 0.999,
+        update_ema_every_n_steps: int = 1,
+        goal_conditioning: bool = True,
+        stop_value: int = 1,
     ):
-        super().__init__(model, trainset=trainset, valset=valset, train_batch_size=train_batch_size,
-                         val_batch_size=val_batch_size, num_workers=num_workers, device=device,
-                         epoch=epoch, scale_data=scale_data, eval_every_n_epochs=eval_every_n_epochs)
+        super().__init__(
+            model,
+            trainset=trainset,
+            valset=valset,
+            train_batch_size=train_batch_size,
+            val_batch_size=val_batch_size,
+            num_workers=num_workers,
+            device=device,
+            epoch=epoch,
+            scale_data=scale_data,
+            eval_every_n_epochs=eval_every_n_epochs,
+        )
 
         self.eval_model_name = "eval_best_ibc.pth"
         self.last_model_name = "last_ibc.pth"
@@ -57,11 +64,12 @@ class IBCAgent(BaseAgent):
             optimization, params=self.model.get_params()
         )
 
-        self.ema_helper = ExponentialMovingAverage(self.model.get_params(), decay, self.device)
+        self.ema_helper = ExponentialMovingAverage(
+            self.model.get_params(), decay, self.device
+        )
         self.sampler = hydra.utils.instantiate(sampler)
         self.lr_scheduler = hydra.utils.instantiate(
-            lr_scheduler,
-            optimizer=self.optimizer
+            lr_scheduler, optimizer=self.optimizer
         )
         self.use_ema = use_ema
         self.update_ema_every_n_steps = update_ema_every_n_steps
@@ -70,7 +78,9 @@ class IBCAgent(BaseAgent):
         self.kl_loss_factor = kl_loss_factor
         self.grad_norm_factor = grad_norm_factor
         # if we use Langevin MCMC sampling we use the WGAN norm as an additional loss term
-        if isinstance(self.sampler, LangevinMCMCSampler) or isinstance(self.sampler, NoiseSampler):
+        if isinstance(self.sampler, LangevinMCMCSampler) or isinstance(
+            self.sampler, NoiseSampler
+        ):
             self.use_grad_norm = True
         else:
             self.use_grad_norm = False
@@ -98,7 +108,7 @@ class IBCAgent(BaseAgent):
         for num_epoch in tqdm(range(self.epoch)):
 
             # run a test batch every n epochs
-            if not (num_epoch+1) % self.eval_every_n_epochs:
+            if not (num_epoch + 1) % self.eval_every_n_epochs:
 
                 test_mse = []
                 for data in self.test_dataloader:
@@ -113,19 +123,19 @@ class IBCAgent(BaseAgent):
 
                 avrg_test_mse = sum(test_mse) / len(test_mse)
 
-                log.info("Epoch {}: Mean test mse is {}".format(num_epoch, avrg_test_mse))
+                log.info(
+                    "Epoch {}: Mean test mse is {}".format(num_epoch, avrg_test_mse)
+                )
 
                 if avrg_test_mse < best_test_mse:
                     best_test_mse = avrg_test_mse
-                    self.store_model_weights(self.working_dir, sv_name=self.eval_model_name)
-
-                    wandb.log(
-                        {
-                            "best_model_epochs": num_epoch
-                        }
+                    self.store_model_weights(
+                        self.working_dir, sv_name=self.eval_model_name
                     )
 
-                    log.info('New best test loss. Stored weights have been updated!')
+                    wandb.log({"best_model_epochs": num_epoch})
+
+                    log.info("New best test loss. Stored weights have been updated!")
 
             epoch_loss = 0
             mse_neg_loss = 0
@@ -138,11 +148,13 @@ class IBCAgent(BaseAgent):
                     state, action, mask = inputs
                     goal = None
 
-                batch_loss, loss_info = self.train_step(state, action, goal)  # TODO get mean of loss/grad info
+                batch_loss, loss_info = self.train_step(
+                    state, action, goal
+                )  # TODO get mean of loss/grad info
                 batch_loss = batch_loss.detach().cpu().numpy()
 
                 epoch_loss += batch_loss
-                mse_neg_loss += loss_info['mse_neg_true_examples']
+                mse_neg_loss += loss_info["mse_neg_true_examples"]
                 intern_step = i
                 self.next_step = False
 
@@ -150,9 +162,11 @@ class IBCAgent(BaseAgent):
 
             epoch_loss = epoch_loss / intern_step
             mse_neg_loss = mse_neg_loss / intern_step
-            log.info("Epoch {}: Mean epoch loss mse is {}".format(num_epoch, epoch_loss))
+            log.info(
+                "Epoch {}: Mean epoch loss mse is {}".format(num_epoch, epoch_loss)
+            )
             log.info("MSE value for negative samples: {}".format(mse_neg_loss))
-            loss_info['mse_neg_true_examples'] = mse_neg_loss
+            loss_info["mse_neg_true_examples"] = mse_neg_loss
             # # log.info loss every x steps
             # if not self.steps % self.eval_every_n_steps or self.steps == 1:
             #     log_step = int(self.steps / self.eval_every_n_steps)
@@ -161,17 +175,17 @@ class IBCAgent(BaseAgent):
 
             if not (num_epoch + 1) % self.eval_every_n_epochs:
 
-                wandb.log(
-                    {
-                        "epoch_loss": epoch_loss,
-                        "test_loss": avrg_test_mse
-                    }
-                )
+                wandb.log({"epoch_loss": epoch_loss, "test_loss": avrg_test_mse})
 
         self.store_model_weights(self.working_dir, sv_name=self.last_model_name)
         log.info("Training done!")
 
-    def train_step(self, state: torch.Tensor, action: torch.Tensor, goal: Optional[torch.Tensor] = None):
+    def train_step(
+        self,
+        state: torch.Tensor,
+        action: torch.Tensor,
+        goal: Optional[torch.Tensor] = None,
+    ):
         # move state to the chosen devices
         if goal is not None:
             goal = self.scaler.scale_input(goal)
@@ -188,13 +202,18 @@ class IBCAgent(BaseAgent):
                 state.size(0), self.model, state, goal, random_start_points=True
             )
         elif isinstance(self.sampler, NoiseSampler):
-            negatives = self.sampler.gen_train_samples(state.size(0), self.model, state, action, goal, self.steps)
+            negatives = self.sampler.gen_train_samples(
+                state.size(0), self.model, state, action, goal, self.steps
+            )
         else:
             negatives = self.sampler.gen_train_samples(state.size(0), self.model, state)
         if self.use_ema:
             self.ema_helper.restore(self.model.parameters())
 
-        mse_loss_value = self.mse_loss(negatives, einops.repeat(action, 'b a n -> (b a) neg n', neg=negatives.shape[1]))
+        mse_loss_value = self.mse_loss(
+            negatives,
+            einops.repeat(action, "b a n -> (b a) neg n", neg=negatives.shape[1]),
+        )
 
         self.model.train()
         # Merge action and negatives: (B, N+1, D).
@@ -213,12 +232,17 @@ class IBCAgent(BaseAgent):
         if self.steps % self.update_ema_every_n_steps == 0:
             self.ema_helper.update(self.model.parameters())
         # also log the gradient norm if its non None
-        dict_info['mse_neg_true_examples'] = mse_loss_value
-        dict_info['model_learning_rate'] = self.lr_scheduler.get_last_lr()[0]
+        dict_info["mse_neg_true_examples"] = mse_loss_value
+        dict_info["model_learning_rate"] = self.lr_scheduler.get_last_lr()[0]
 
         return loss, dict_info
 
-    def evaluate(self, state: torch.Tensor, action: torch.Tensor, goal: Optional[torch.Tensor] = None):
+    def evaluate(
+        self,
+        state: torch.Tensor,
+        action: torch.Tensor,
+        goal: Optional[torch.Tensor] = None,
+    ):
 
         self.model.eval()
 
@@ -237,7 +261,7 @@ class IBCAgent(BaseAgent):
         action = action.to(self.device)
         out = self.sampler.infer(state, self.model, goal)
 
-        action = einops.rearrange(action, 'b a n -> (b a) n')
+        action = einops.rearrange(action, "b a n -> (b a) n")
         mse = F.mse_loss(out, action, reduction="none").mean()
 
         # restore the previous model parameters
@@ -245,7 +269,9 @@ class IBCAgent(BaseAgent):
             self.ema_helper.restore(self.model.parameters())
         return mse.detach().item()
 
-    def predict(self, state: torch.Tensor, goal: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def predict(
+        self, state: torch.Tensor, goal: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         """
         Method for predicting one step with state data using the stochastic optimizer instance to generate
         samples and return the best sample with the lowest energy
@@ -285,30 +311,38 @@ class IBCAgent(BaseAgent):
         out = self.scaler.inverse_scale_output(out)
         return out.detach().cpu().numpy()
 
-    def compute_loss(self, state: torch.Tensor, actions: torch.Tensor, goal: Optional[torch.Tensor] = None):
+    def compute_loss(
+        self,
+        state: torch.Tensor,
+        actions: torch.Tensor,
+        goal: Optional[torch.Tensor] = None,
+    ):
         # next we compute the chosen loss function
         # next we compute the chosen loss function
-        state = einops.rearrange(state, 'b a n -> (b a) n')
+        state = einops.rearrange(state, "b a n -> (b a) n")
         if goal is not None:
-            goal = einops.rearrange(goal, 'b a n -> (b a) n')
+            goal = einops.rearrange(goal, "b a n -> (b a) n")
 
         if self.use_grad_norm:
-            _, grad_norm, _ = self.sampler.compute_gradient(self.model, state, actions, goal, False)
+            _, grad_norm, _ = self.sampler.compute_gradient(
+                self.model, state, actions, goal, False
+            )
             grad_norm_loss = compute_gradient_loss(grad_norm)
 
         if self.loss_type == "info_nce":
             info_nce_loss, loss_dict = compute_info_nce_loss(
                 ebm=self.model,
-                state=state, actions=actions,
+                state=state,
+                actions=actions,
                 device=self.device,
                 avrg_e_regularization=self.avrg_e_regularization,
-                goal=goal
+                goal=goal,
             )
             # add inference loss together with the gradient loss if necessary
             if self.use_grad_norm:
                 loss = info_nce_loss + self.grad_norm_factor * grad_norm_loss
-                loss_dict['grad_loss'] = grad_norm_loss
-                loss_dict['overall_grad_norms_avg'] = torch.mean(grad_norm)
+                loss_dict["grad_loss"] = grad_norm_loss
+                loss_dict["overall_grad_norms_avg"] = torch.mean(grad_norm)
             else:
                 loss = info_nce_loss
 
@@ -317,7 +351,7 @@ class IBCAgent(BaseAgent):
                 ebm=self.model,
                 state=state,
                 actions=actions,
-                avrg_e_regularization=self.avrg_e_regularization
+                avrg_e_regularization=self.avrg_e_regularization,
             )
 
             if self.use_grad_norm:
@@ -326,22 +360,25 @@ class IBCAgent(BaseAgent):
         elif self.loss_type == "cd_kl":
             loss = contrastive_divergence_kl(
                 ebm=self.model,
-                state=state, actions=actions,
+                state=state,
+                actions=actions,
                 avrg_e_regularization=self.avrg_e_regularization,
-                kl_loss_factor=self.kl_loss_factor
+                kl_loss_factor=self.kl_loss_factor,
             )
 
-        elif self.loss_type == 'cd_entropy':
+        elif self.loss_type == "cd_entropy":
             loss = contrastive_divergence_entropy_approx(
                 ebm=self.model,
-                state=state, actions=actions,
+                state=state,
+                actions=actions,
             )
-        elif self.loss_type == 'autoregressive_info_nce':
+        elif self.loss_type == "autoregressive_info_nce":
             loss = compute_autoregressive_info_nce_loss(
                 ebm=self.model,
-                state=state, actions=actions,
+                state=state,
+                actions=actions,
                 device=self.device,
-                avrg_e_regularization=self.avrg_e_regularization
+                avrg_e_regularization=self.avrg_e_regularization,
             )
         else:
             raise ValueError("Not a correct loss type! Please chose another one!")
@@ -357,13 +394,19 @@ class IBCAgent(BaseAgent):
             self.ema_helper.copy_to(self.model.parameters())
 
         if sv_name is None:
-            torch.save(self.model.state_dict(), os.path.join(store_path, "model_state_dict.pth"))
+            torch.save(
+                self.model.state_dict(),
+                os.path.join(store_path, "model_state_dict.pth"),
+            )
         else:
             torch.save(self.model.state_dict(), os.path.join(store_path, sv_name))
 
         if self.use_ema:
             self.ema_helper.restore(self.model.parameters())
-        torch.save(self.model.state_dict(), os.path.join(store_path, "non_ema_model_state_dict.pth"))
-        
+        torch.save(
+            self.model.state_dict(),
+            os.path.join(store_path, "non_ema_model_state_dict.pth"),
+        )
+
     def reset(self):
         pass

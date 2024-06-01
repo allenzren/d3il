@@ -10,7 +10,6 @@ import wandb
 
 from agents.utils.scaler import Scaler
 
-# A logger for this file
 log = logging.getLogger(__name__)
 
 
@@ -24,10 +23,10 @@ class BaseAgent(abc.ABC):
         train_batch_size: int = 512,
         val_batch_size: int = 512,
         num_workers: int = 8,
-        device: str = 'cpu',
+        device: str = "cpu",
         epoch: int = 100,
         scale_data: bool = True,
-        eval_every_n_epochs: int = 50
+        eval_every_n_epochs: int = 50,
     ):
 
         self.model = hydra.utils.instantiate(model).to(device)
@@ -41,7 +40,7 @@ class BaseAgent(abc.ABC):
             shuffle=True,
             num_workers=num_workers,
             pin_memory=True,
-            prefetch_factor=10
+            prefetch_factor=10,
         )
 
         self.test_dataloader = torch.utils.data.DataLoader(
@@ -50,7 +49,7 @@ class BaseAgent(abc.ABC):
             shuffle=False,
             num_workers=num_workers,
             pin_memory=True,
-            prefetch_factor=10
+            prefetch_factor=10,
         )
 
         self.eval_every_n_epochs = eval_every_n_epochs
@@ -60,15 +59,16 @@ class BaseAgent(abc.ABC):
         self.device = device
         self.working_dir = os.getcwd()
 
-        self.scaler = Scaler(self.trainset.get_all_observations(), self.trainset.get_all_actions(), scale_data, device)
+        self.scaler = Scaler(
+            self.trainset.get_all_observations(),
+            self.trainset.get_all_actions(),
+            scale_data,
+            device,
+        )
 
         total_params = sum(p.numel() for p in self.model.get_params())
 
-        wandb.log(
-            {
-                "model parameters": total_params
-            }
-        )
+        wandb.log({"model parameters": total_params})
 
         log.info("The model has a total amount of {} parameters".format(total_params))
 
@@ -78,14 +78,14 @@ class BaseAgent(abc.ABC):
             self.train_vision_agent()
         else:
             self.train_agent()
-            
+
     @abc.abstractmethod
     def train_agent(self):
         """
         Main method to train the agent on the given train and test data
         """
         pass
-     
+
     # @abc.abstractmethod
     # def train_vision_agent(self):
     #     """
@@ -113,7 +113,7 @@ class BaseAgent(abc.ABC):
         Method for predicting one step with input data
         """
         pass
-    
+
     @abc.abstractmethod
     def reset(self) -> torch.Tensor:
         """
@@ -130,10 +130,12 @@ class BaseAgent(abc.ABC):
         """
 
         if sv_name is None:
-            self.model.load_state_dict(torch.load(os.path.join(weights_path, "model_state_dict.pth")))
+            self.model.load_state_dict(
+                torch.load(os.path.join(weights_path, "model_state_dict.pth"))
+            )
         else:
             self.model.load_state_dict(torch.load(os.path.join(weights_path, sv_name)))
-        log.info('Loaded pre-trained model parameters')
+        log.info("Loaded pre-trained model parameters")
 
     def store_model_weights(self, store_path: str, sv_name=None) -> None:
         """
@@ -141,6 +143,9 @@ class BaseAgent(abc.ABC):
         """
 
         if sv_name is None:
-            torch.save(self.model.state_dict(), os.path.join(store_path, "model_state_dict.pth"))
+            torch.save(
+                self.model.state_dict(),
+                os.path.join(store_path, "model_state_dict.pth"),
+            )
         else:
             torch.save(self.model.state_dict(), os.path.join(store_path, sv_name))
