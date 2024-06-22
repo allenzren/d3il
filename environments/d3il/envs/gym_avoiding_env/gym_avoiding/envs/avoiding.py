@@ -12,9 +12,7 @@ from d3il_sim.sims.mj_beta.MjRobot import MjRobot
 from d3il_sim.sims.mj_beta.MjFactory import MjFactory
 from d3il_sim.sims import MjCamera
 
-from .objects.avoiding_objects import get_obj_list, \
-    init_end_eff_pos, \
-    get_obj_xy_list
+from .objects.avoiding_objects import get_obj_list, init_end_eff_pos, get_obj_xy_list
 
 obj_list = get_obj_list()
 
@@ -41,7 +39,6 @@ class BPCageCam(MjCamera):
         )
 
 
-
 class ObstacleAvoidanceManager:
     def __init__(self):
         self.index = 0
@@ -53,11 +50,11 @@ class ObstacleAvoidanceManager:
 
 class ObstacleAvoidanceEnv(GymEnvWrapper):
     def __init__(
-            self,
-            n_substeps: int = 35,
-            max_steps_per_episode: int = 250,
-            debug: bool = False,
-            render: bool = False
+        self,
+        n_substeps: int = 35,
+        max_steps_per_episode: int = 250,
+        debug: bool = False,
+        render: bool = False,
     ):
         sim_factory = MjFactory()
         render_mode = Scene.RenderMode.HUMAN if render else Scene.RenderMode.BLIND
@@ -65,8 +62,7 @@ class ObstacleAvoidanceEnv(GymEnvWrapper):
             object_list=obj_list, render=render_mode, dt=0.001
         )
         robot = MjRobot(
-            scene,
-            xml_path=d3il_path("./models/mj/robot/panda_rod_invisible.xml")
+            scene, xml_path=d3il_path("./models/mj/robot/panda_rod_invisible.xml")
         )
         controller = robot.cartesianPosQuatTrackingController
 
@@ -80,9 +76,7 @@ class ObstacleAvoidanceEnv(GymEnvWrapper):
         self.action_space = Box(
             low=np.array([-0.01, -0.01]), high=np.array([0.01, 0.01])
         )
-        self.observation_space = Box(
-            low=-np.inf, high=np.inf, shape=(4, )
-        )
+        self.observation_space = Box(low=-np.inf, high=np.inf, shape=(4,))
 
         self.manager = ObstacleAvoidanceManager()
         self.bp_cam = BPCageCam()
@@ -111,15 +105,13 @@ class ObstacleAvoidanceEnv(GymEnvWrapper):
         self.l3_passed = False
         self.mode_encoding = np.zeros(2 + 3 + 4)
 
-        self.success = False
         self.start()
 
     def get_observation(self) -> np.ndarray:
         _, robot_c_pos = self.robot_state()
         # if any(np.isnan(robot_des_c_pos)):
         #     robot_des_c_pos = robot_c_pos
-        return np.hstack((self.prev_action, 
-                          robot_c_pos[:2].astype(np.float32)))
+        return np.hstack((self.prev_action, robot_c_pos[:2].astype(np.float32)))
 
     def start(self):
         self.scene.start()
@@ -158,22 +150,31 @@ class ObstacleAvoidanceEnv(GymEnvWrapper):
         )
         self.robot.gotoCartPosQuatController.initController(self.robot, 1)
 
-        self.robot.init_qpos = self.robot.gotoCartPosQuatController.trajectory[-1].copy()
+        self.robot.init_qpos = self.robot.gotoCartPosQuatController.trajectory[
+            -1
+        ].copy()
         self.robot.init_tcp_pos = initial_cart_position
         self.robot.init_tcp_quat = [0, 1, 0, 0]
 
-        self.robot.beam_to_joint_pos(self.robot.gotoCartPosQuatController.trajectory[-1])
+        self.robot.beam_to_joint_pos(
+            self.robot.gotoCartPosQuatController.trajectory[-1]
+        )
 
         self.robot.gotoCartPositionAndQuat(
             desiredPos=initial_cart_position, desiredQuat=[0, 1, 0, 0], duration=0.5
         )
 
     def step(self, action, gripper_width=None):
-        self.obs = self.get_observation() 
+        self.obs = self.get_observation()
         observation, reward, done, desired_pos, _ = super().step(action, gripper_width)
         self.check_mode()
-        self.prev_action = desired_pos[:2]   # update
-        return observation, reward, done, {'mode_encoding': self.mode_encoding, 'success': self.success}
+        self.prev_action = desired_pos[:2]  # update
+        return (
+            observation,
+            reward,
+            done,
+            {"mode_encoding": self.mode_encoding},
+        )
 
     def check_mode(self):
         r_x_pos = self.robot.current_c_pos[0]
@@ -207,17 +208,17 @@ class ObstacleAvoidanceEnv(GymEnvWrapper):
             self.l3_passed = True
 
     def check_failure(self):
-        if has_collision('l1_obs', 'rod', self.scene.model, self.scene.data):
+        if has_collision("l1_obs", "rod", self.scene.model, self.scene.data):
             return True
-        elif has_collision('l2_top_obs', 'rod', self.scene.model, self.scene.data):
+        elif has_collision("l2_top_obs", "rod", self.scene.model, self.scene.data):
             return True
-        elif has_collision('l2_bottom_obs', 'rod', self.scene.model, self.scene.data):
+        elif has_collision("l2_bottom_obs", "rod", self.scene.model, self.scene.data):
             return True
-        elif has_collision('l3_top_obs', 'rod', self.scene.model, self.scene.data):
+        elif has_collision("l3_top_obs", "rod", self.scene.model, self.scene.data):
             return True
-        elif has_collision('l3_mid_obs', 'rod', self.scene.model, self.scene.data):
+        elif has_collision("l3_mid_obs", "rod", self.scene.model, self.scene.data):
             return True
-        elif has_collision('l3_bottom_obs', 'rod', self.scene.model, self.scene.data):
+        elif has_collision("l3_bottom_obs", "rod", self.scene.model, self.scene.data):
             return True
         else:
             return False
@@ -251,7 +252,7 @@ class ObstacleAvoidanceEnv(GymEnvWrapper):
         self.env_step_counter = 0
         self.episode += 1
         self.reset_mode_encoding()
-        self.success = False
+        self.collision = False
         obs = self._reset_env(random=random, context=context)
         return obs
 
@@ -266,12 +267,16 @@ class ObstacleAvoidanceEnv(GymEnvWrapper):
     def reward(self, x):
         def squared_exp_kernel(x, mean, scale, bandwidth):
             return scale * np.exp(np.square(np.linalg.norm(x - mean)) / bandwidth)
+
         reward = 0
         # for obs in self.obj_xy_list:    # obstacles
         #     reward -= squared_exp_kernel(x, np.array(obs), 1, 1)
 
-        # need reward engineering...
-        if x[1] > 0.4:
+        if self.check_failure():
+            self.collision = True
+        if self.collision:  # permanent penalty
+            reward = -0.1
+        elif x[1] > 0.4:
             reward = 1
         # reward += np.abs(x[1] - 0.4)    # finish line?
         # rewards -= np.abs(x[:, 0] - 0.4)
@@ -281,14 +286,16 @@ class ObstacleAvoidanceEnv(GymEnvWrapper):
         data_decimal = data.dot(1 << np.arange(data.shape[-1]))
         _, counts = np.unique(data_decimal, return_counts=True)
         mode_dist = counts / np.sum(counts)
-        entropy = - np.sum(mode_dist * (np.log(mode_dist) / np.log(24)))
+        entropy = -np.sum(mode_dist * (np.log(mode_dist) / np.log(24)))
         return counts, entropy
+
 
 class ObstacleAvoidanceTopEnv(ObstacleAvoidanceEnv):
     """Reward for going through the top hole"""
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        
+
     # def reset(self, **kwargs):
     #     obs = super().reset(**kwargs)
     #     self.flag_pass_hole = False
