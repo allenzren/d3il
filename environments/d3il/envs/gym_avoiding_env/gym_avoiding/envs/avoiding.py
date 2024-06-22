@@ -128,7 +128,7 @@ class ObstacleAvoidanceEnv(GymEnvWrapper):
         try:
             self.scene.viewer.cam.elevation = -55
             self.scene.viewer.cam.distance = 1.8
-            self.scene.viewer.cam.lookat[0] += -0.1
+            # self.scene.viewer.cam.lookat[0] += -0.1
             self.scene.viewer.cam.lookat[2] -= 0.2
 
             # self.scene.viewer.cam.elevation = -55
