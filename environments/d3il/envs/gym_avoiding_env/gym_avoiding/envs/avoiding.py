@@ -134,9 +134,14 @@ class ObstacleAvoidanceEnv(GymEnvWrapper):
         except:
             pass
 
+        # x_range = [0.3, 0.7]  # 0.525
+        # y_range = [0, 0.2] # -0.28
+        # x = self.np_random.uniform(x_range[0], x_range[1])
+        # y = self.np_random.uniform(y_range[0], y_range[1])
+        # initial_cart_position = [x, y, 0.12]
+
         # reset the initial state of the robot
         initial_cart_position = copy.deepcopy(init_end_eff_pos)
-        # initial_cart_position[2] = 0.12
         self.robot.gotoCartPosQuatController.setDesiredPos(
             [
                 initial_cart_position[0],
@@ -265,18 +270,19 @@ class ObstacleAvoidanceEnv(GymEnvWrapper):
         return observation
 
     def reward(self, x):
-        def squared_exp_kernel(x, mean, scale, bandwidth):
-            return scale * np.exp(np.square(np.linalg.norm(x - mean)) / bandwidth)
-
         reward = 0
+        # def squared_exp_kernel(x, mean, scale, bandwidth):
+        #     return scale * np.exp(np.square(np.linalg.norm(x - mean)) / bandwidth)
         # for obs in self.obj_xy_list:    # obstacles
         #     reward -= squared_exp_kernel(x, np.array(obs), 1, 1)
 
-        if self.check_failure():
+        if not self.collision and self.check_failure():
             self.collision = True
         if self.collision:  # permanent penalty
-            reward = -0.1
-        elif x[1] > 0.4:
+            return -0.1
+        if x[0] < 0.2 or x[0] > 0.8:
+            return -0.1
+        if x[1] > 0.4:
             reward = 1
         # reward += np.abs(x[1] - 0.4)    # finish line?
         # rewards -= np.abs(x[:, 0] - 0.4)
@@ -289,9 +295,8 @@ class ObstacleAvoidanceEnv(GymEnvWrapper):
         entropy = -np.sum(mode_dist * (np.log(mode_dist) / np.log(24)))
         return counts, entropy
 
-
-class ObstacleAvoidanceTopEnv(ObstacleAvoidanceEnv):
-    """Reward for going through the top hole"""
+class ObstacleAvoidanceM5Env(ObstacleAvoidanceEnv):
+    """Reward for going through mode 5"""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -303,7 +308,87 @@ class ObstacleAvoidanceTopEnv(ObstacleAvoidanceEnv):
 
     def reward(self, x):
         reward = 0
+        if not self.collision and self.check_failure():
+            self.collision = True
+        if self.collision:  # permanent penalty
+            return -0.1
+        if x[0] < 0.2 or x[0] > 0.8:
+            return -0.1
+        if self.mode_encoding[5]:
+            reward += 1
+        if x[1] > 0.4:
+            reward += 1
+        return reward
+
+class ObstacleAvoidanceM6Env(ObstacleAvoidanceEnv):
+    """Reward for going through mode 6"""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    # def reset(self, **kwargs):
+    #     obs = super().reset(**kwargs)
+    #     self.flag_pass_hole = False
+    #     return obs
+
+    def reward(self, x):
+        reward = 0
+        if not self.collision and self.check_failure():
+            self.collision = True
+        if self.collision:  # permanent penalty
+            return -0.1
+        if x[0] < 0.2 or x[0] > 0.8:
+            return -0.1
         if self.mode_encoding[6]:
+            reward += 1
+        if x[1] > 0.4:
+            reward += 1
+        return reward
+
+class ObstacleAvoidanceM7Env(ObstacleAvoidanceEnv):
+    """Reward for going through mode 7"""
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        
+    # def reset(self, **kwargs):
+    #     obs = super().reset(**kwargs)
+    #     self.flag_pass_hole = False
+    #     return obs
+
+    def reward(self, x):
+        reward = 0
+        if not self.collision and self.check_failure():
+            self.collision = True
+        if self.collision:  # permanent penalty
+            return -0.1
+        if x[0] < 0.2 or x[0] > 0.8:
+            return -0.1
+        if self.mode_encoding[7]:
+            reward += 1
+        if x[1] > 0.4:
+            reward += 1
+        return reward
+
+
+class ObstacleAvoidanceM8Env(ObstacleAvoidanceEnv):
+    """Reward for going through mode 8"""
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        
+    # def reset(self, **kwargs):
+    #     obs = super().reset(**kwargs)
+    #     self.flag_pass_hole = False
+    #     return obs
+
+    def reward(self, x):
+        reward = 0
+        if not self.collision and self.check_failure():
+            self.collision = True
+        if self.collision:  # permanent penalty
+            return -0.1
+        if x[0] < 0.2 or x[0] > 0.8:
+            return -0.1
+        if self.mode_encoding[8]:
             reward += 1
         if x[1] > 0.4:
             reward += 1
